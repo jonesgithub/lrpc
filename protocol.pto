@@ -1,0 +1,61 @@
+gmserver = {
+    client = [[  # client --> gmserver
+        echo 1 {
+            request {
+                what 0 : string
+            }
+            response {
+                what 0 : string
+            }
+        }
+    ]],
+    master = [[ # master --> gmserver
+        echo 1 {
+            request {
+                what 0 : string
+            }
+            response {
+                what 0 : string
+            }
+        }
+    ]],
+}
+
+client = {
+    gmserver = [[  # gmserver --> client
+        echo 1 {
+            request {
+                what 0 : string
+            }
+            response {
+                what 0 : string
+            }
+        }
+    ]],
+}
+ 
+master = {
+    gmserver = [[ # gmserver --> master
+        echo 1 {
+            request {
+                what 0 : string
+            }
+            response {
+                what 0 : string
+            }
+        }
+    ]],
+}
+
+db = {
+    gmserver = [[ # gmserver --> db
+        echo 1 {
+            request {
+                what 0 : string
+            }
+            response {
+                what 0 : string
+            }
+        }
+    ]],
+}

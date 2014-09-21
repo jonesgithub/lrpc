@@ -1,0 +1,7 @@
+testtimer_server = {
+    testtimer = [[
+        foobar 1 {
+            request {
+            }
+    ]],
+}
