@@ -31,13 +31,12 @@ static void timercb(evutil_socket_t fd, short what, void *arg)
     lua_rawgeti(L, LUA_REGISTRYINDEX, lcb_ref);
     luaL_unref(L, LUA_REGISTRYINDEX, lcb_ref);
     assert(lua_isfunction(L, -1));
+
+    FreeIndexs[FreeSize++] = timer_index;
+    assert(FreeSize <= TIMER_EVENT_NUM);
+ 
     if (lua_pcall(L, 0, 1, 0) != 0) {
         logging("timer call lua back error : %s", lua_tostring(L, -1));
-    } else {
-        if (lua_toboolean(L, -1)) {
-            FreeIndexs[FreeSize++] = timer_index;
-            assert(FreeSize <= TIMER_EVENT_NUM);
-        }
     }
 }
 

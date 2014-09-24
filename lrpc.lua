@@ -20,6 +20,11 @@ function co_create(f)
     end
 end
 
+local function err_handler(msg)
+    print(debug.traceback())
+    return false,msg
+end
+
 
 timer = {}
 local cur_timerid = 0
@@ -39,7 +44,7 @@ function timer.call_once(seconds, cb, ...)
     local id, ref
 
     local co = co_create(function ()
-        cb(unpack(args))
+        xpcall(cb, err_handler, unpack(args))
     end)
     local function timer_cb()
         alltimers[id] = nil
@@ -62,7 +67,7 @@ function timer.call_multi(first_hit, frequency, cb, ...)
         while true do
             if not alltimers[id] then return end
             local next_time = os.time() + frequency
-            if not cb(unpack(args)) then break end
+            if not xpcall(cb, err_handler, unpack(args)) then break end
             local time_sleep = next_time - os.time()
             if time_sleep < 0 then -- miss one or more callback
                 time_sleep = frequency
@@ -72,13 +77,8 @@ function timer.call_multi(first_hit, frequency, cb, ...)
         alltimers[id] = nil
     end)
     local function timer_cb()
+        alltimers[id] = true
         coroutine.resume(co)
-        if (alltimers[id]) then
-            alltimers[id] = true
-            return true
-        else
-            return false
-        end
     end
 
     ref = timer_register(first_hit, timer_cb)
