@@ -144,9 +144,9 @@ static void readcb(struct bufferevent *bev, void *ctx)
     int id = (intptr_t)ctx;
     struct evbuffer *input = bufferevent_get_input(bev);
     lua_rawgeti(L, LUA_REGISTRYINDEX, UnpackHandlerRef);
-    lua_pushvalue(L, -1);
     assert(lua_isfunction(L, -1));
     while (1) {
+        lua_pushvalue(L, -1);
         size_t len = evbuffer_get_length(input);
         if (len < PACKET_HEADER_SZ)
             break;
@@ -159,13 +159,15 @@ static void readcb(struct bufferevent *bev, void *ctx)
         lua_pushnumber(L, id);
         lua_pushlightuserdata(L, packet);
         lua_pushnumber(L, packet_len);
-        if (lua_pcall(L, 3, 1, 0) != 0) {
+        if (lua_pcall(L, 3, 2, 0) != 0) {
             logging("call unpack handler error : %s", lua_tostring(L, -1));
+            lua_pop(L, 1);
         } else {
-            if (lua_toboolean(L, -1) == 0)
-                logging("unpack handler goes wrong");
+            if (lua_toboolean(L, -2) == 0) {
+                logging("unpack handler goes wrong : %s", lua_tostring(L, -1));
+            }
+            lua_pop(L, 2);
         }
-        lua_pop(L, 1);
         evbuffer_drain(input, PACKET_HEADER_SZ + packet_len);
     }
     lua_pop(L, 1);
@@ -300,51 +302,6 @@ static int lpacket_sender(lua_State *L)
     return 1;
 }
 
-static void timercb(evutil_socket_t fd, short what, void *arg)
-{
-    int lcb_ref = (intptr_t)arg;
-    lua_rawgeti(L, LUA_REGISTRYINDEX, lcb_ref);
-    luaL_unref(L, LUA_REGISTRYINDEX, lcb_ref);
-    assert(lua_isfunction(L, -1));
-    if (lua_pcall(L, 0, 0, 0) != 0) {
-        logging("timer call lua back error : %s", lua_tostring(L, -1));
-    }
-}
-
-//seconds number
-//callback luafunction
-static int ltimer_register(lua_State *L)
-{
-    double seconds = luaL_checknumber(L, 1);
-    if (lua_type(L, 2) != LUA_TFUNCTION) {
-        luaL_argerror(L, 2, "function expected");
-        return 0;
-    }
-    lua_pushvalue(L, 2);
-    int lcb_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-
-    struct timeval time_out;
-    time_out.tv_sec  = (int)(seconds);
-    time_out.tv_usec = (int)((seconds - time_out.tv_sec) * 1000000);
-    struct event *ev = evtimer_new(EV_Base, timercb, (void *)(intptr_t)lcb_ref);
-    evtimer_add(ev, &time_out);
-    lua_pushlightuserdata(L, ev);
-    return 1;
-}
-
-//timer_id int
-static int ltimer_remove(lua_State *L)
-{
-    struct event *ev = lua_touserdata(L, 1);
-    if (!ev) {
-        return luaL_error(L, "remove timer error : wrong timer id");
-    }
-    int lcb_ref = (intptr_t)event_get_callback_arg(ev);
-    luaL_unref(L, LUA_REGISTRYINDEX, lcb_ref);
-    event_free(ev);
-    return 0;
-}
-
 //log_msg string
 static int llogging(lua_State *L)
 {
@@ -358,11 +315,11 @@ static int preload(lua_State *L)
     if (luaL_dofile(L, "preload.lua") != 0)
         ERR_EXIT("load preload.lua error : %s\n", lua_tostring(L, -1));
     lua_getglobal(L, "packet_handler");
+    assert(lua_isfunction(L, -1));
     UnpackHandlerRef = luaL_ref(L, LUA_REGISTRYINDEX);
 
     lua_register(L, "packet_sender", lpacket_sender);
-    lua_register(L, "timer_register", ltimer_register);
-    lua_register(L, "timer_remove", ltimer_remove);
+    init_ltimer(L, EV_Base);
     lua_register(L, "logging", llogging);
     return 0;
 }

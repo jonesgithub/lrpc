@@ -73,7 +73,12 @@ function timer.call_multi(first_hit, frequency, cb, ...)
     end)
     local function timer_cb()
         coroutine.resume(co)
-        alltimers[id] = alltimers[id] and true
+        if (alltimers[id]) then
+            alltimers[id] = true
+            return true
+        else
+            return false
+        end
     end
 
     ref = timer_register(first_hit, timer_cb)

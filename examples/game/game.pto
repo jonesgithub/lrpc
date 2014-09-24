@@ -1,0 +1,72 @@
+gameserver = {
+    client = [[
+        login 1 {
+            request {
+                username 0 : string
+            }
+            response {
+                ok 0 : boolean
+            }
+        }
+
+        say_in_world 2 {
+            request {
+                what 0 : string
+            }
+        }
+    ]],
+
+    master = [[   
+        user_say 1 {
+            request {
+                username 0 : string
+                what 1 : string
+            }
+        }
+    ]]
+}
+
+client = {
+    gameserver = [[
+        other_say 1 {
+                request {
+                    username 0 : string
+                    what 1 : string
+                }
+            }
+    ]]
+}
+
+
+master = {
+    gameserver =  [[
+        user_login 1 {
+            request {
+                username 0 : string
+            }
+            response {
+                id 0 : integer
+            }
+        }
+
+        say_in_world 2 {
+            request {
+                username 0 : string
+                what 1 : string
+            }
+        }
+    ]]
+}
+
+db = {
+    master = [[
+        create_user 1 {
+            request {
+                username 0 : string
+            }
+            response {
+                id 0 : integer
+            }
+        }
+    ]]
+}

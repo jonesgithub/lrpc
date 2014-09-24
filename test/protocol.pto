@@ -3,5 +3,6 @@ testtimer_server = {
         foobar 1 {
             request {
             }
+        }
     ]],
 }

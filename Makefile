@@ -12,7 +12,7 @@ export DEBUG
 CCFLAGS += -g	
 endif
 
-SRC = lrpc_main.c lrpc_util.c
+SRC = lrpc_main.c lrpc_util.c lrpc_timer.c
 BIN = lrpc
 
 

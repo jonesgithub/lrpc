@@ -44,7 +44,7 @@ function sproto:queryproto(protoname)
     local v = self.__pcache[protoname]
     if not v then
         local tag, req, resp = core.protocol(self.__cobj, protoname)
-        assert(tag, protoname .. "not found")
+        assert(tag, protoname .. " not found")
         if tonumber(protoname) then
             protoname, tag = tag, protoname
         end
@@ -80,18 +80,13 @@ function packet_handler(channel_id, packet, size)
     local header, size = core.decode(header_type, bin, header_tbl)
     local content = bin:sub(size + 1)
     local session = header.session
-    if not session then
-        logging("packet no session")
-        return
-    end
     if header.type then -- is a request packet
-        return allmakers[chanel_id]:dispatch(channel_id, header.type, session, content)
+        return allmakers[channel_id]:dispatch(channel_id, header.type, session, content)
     else -- is a response packet
         local s = assert(allsessions[session], "a session not found")
         allsessions[session] = nil
         local result = core.decode(s.response, content)
-        coroutine.resume(s.co, result)
-        return true
+        return coroutine.resume(s.co, result)
     end
 end
 
@@ -115,23 +110,30 @@ local function make_maker(peer_char_name, ptext)
             return
         end
 
-        local responsor = function (args)
-            header_tbl.type = nil
-            header_tbl.session = session
-            local header = core.encode(header_type, header_tbl)
-            if proto.response then
-                local content = core.encode(proto.response, args)
-                packet_sender(channel_id, core.pack(header .. content))
-            else
-                packet_sender(channel_id, core.pack(header))
+        local responsor 
+
+        if session then
+            responsor = function (args)
+                header_tbl.type = nil
+                header_tbl.session = session
+                local header = core.encode(header_type, header_tbl)
+                if proto.response then
+                    local content = core.encode(proto.response, args)
+                    packet_sender(channel_id, core.pack(header .. content))
+                else
+                    packet_sender(channel_id, core.pack(header))
+                end
             end
         end
 
         local co = co_create(function ()
-            funcs[proto.name](result, responsor)
+            local function err_handler(msg)
+                logging(debug.traceback(msg))
+                return false, msg
+            end
+            xpcall(funcs[proto.name], err_handler, result, responsor, channel_id)
         end)
-        coroutine.resume(co)
-        return true
+        return coroutine.resume(co)
     end
     return maker_obj
 end
@@ -139,27 +141,36 @@ end
 local function make_caller(peer_char_name, ptext)
     local caller_obj = {}
     caller_obj.__pobj = doparsing(ptext)
-    caller_obj.__channel = remote_servers[peer_char_name]
+    local def_channel = remote_servers[peer_char_name]
     _G[peer_char_name] = caller_obj
     setmetatable(caller_obj, {__index = function (self, k)
         local p = self.__pobj:queryproto(k)
         if not p then return end
-        return function (...)
+        return function (args, channel)
             header_tbl.type = p.tag
-            header_tbl.session = alloc_session()
-            allsessions[header_tbl.session] = {
-                co = coroutine.running(),
-                response = p.response
-            }
+            if p.response then
+                header_tbl.session = alloc_session()
+                allsessions[header_tbl.session] = {
+                    co = coroutine.running(),
+                    response = p.response
+                }
+            else
+                header_tbl.session = nil
+            end
             local header = core.encode(header_type, header_tbl)
-            local args = ...
+            channel = channel or def_channel
+            assert(channel, "no channel specified")
             if args then
                 local content = core.encode(p.request, args)
-                packet_sender(self.__channel, core.pack(header .. content))
+                packet_sender(channel, core.pack(header .. content))
             else
-                packet_sender(self.__channel, core.pack(header))
+                packet_sender(channel, core.pack(header))
             end
-            return coroutine.yield()
+            if p.response then
+                return coroutine.yield()
+            else
+                return true
+            end
         end
     end})
     return caller_obj
@@ -183,7 +194,9 @@ function load_protocol()
         end
     end
     setmetatable(allmakers, {__index = function (self, k)
-        return clt_proto
+        if type(k) == "number" and k > 0 then
+            return clt_proto
+        end
     end})
 
     all_ptexts[my_char] = nil

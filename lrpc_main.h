@@ -14,4 +14,6 @@ extern lua_State *L;
 
 void _logging(const char *fmt, ...);
 #define logging(fmt, args...) _logging("%s:%d : "fmt, __FILE__, __LINE__, ##args)
+
+int init_ltimer(lua_State *L, void *arg);
 #endif
